@@ -15,37 +15,50 @@ _buffer_ = '<*>'
 window = 4
 corpus = "big_file.txt"
 threshold = 0.4
+min_df = 5
 
 OUTPUT_DIR = "saved_model"
 PICKLE_FILE = "variables.pickle"
 
-
-def count_vocab(corpus):
-    dictionary = dict()
-    mydoclist = []
-    line_no = 0
+# This function counts the unigrams in the whole corpus
+def count_unigrams(corpus):
+    vocab = dict()
+    ngram = Counter()
+    num_line = 0
+    num_tok = 0
+  
+    # This is the regular expression which is used in scikit-learn \
+    # for tokenizing words
+    token_pattern = re.compile(r"(?u)\b\w\w+\b")
 
     with open(corpus, "rb") as fp:
         for line in fp:
-            line_no += 1
-            if(line_no % 100 == 0):
-                print "Processing line number:  ", line_no
+            num_line += 1
+            #if num_line % 1000 is 0:
+            #    print "Processing line number:  ", num_line
+            if num_tok % 1000 is 0: 
+                print "Processed %i tokens" % (num_tok)
 
-            mydoclist.append(line.strip())
+            toks = token_pattern.findall(line.strip().lower())
+            for token in toks:
+                num_tok += 1
+                ngram[token.strip()] += 1 
+                
+    print "Total tokens :  ", num_tok
 
-    count_vectorizer = CountVectorizer(lowercase="True", min_df=1,
-                                       ngram_range=(1, 1))
-    count_vectorizer.fit_transform(mydoclist)
+    files = OUTPUT_DIR + "/" + "vocabulary"
 
-    del mydoclist
+    # sorting the term frequency in decreasing order and writing to file
+    sorted_ngram = sorted(ngram.items(), key=lambda x: x[1], reverse=True)
+    with open(files+"/"+"term_frequency.txt", 'wb') as outf:
+        for token, count in sorted_ngram:
+            print >> outf, token.encode('utf-8') , "\t", count
 
-    for item in count_vectorizer.get_feature_names():
-        dictionary[item] = len(dictionary)
-
-    dictionary[_rare_] = len(dictionary)
-
-    return dictionary
-
+            if ((min_df is not None) and (count >= min_df)):
+                vocab[token] = len(vocab)
+    
+    return vocab
+    
 
 if __name__ == "__main__":
 
@@ -55,18 +68,18 @@ if __name__ == "__main__":
         print "pickle file exists"
         with open(PICKLE_FILE, "rb") as pfile:
             pickle_dict = pickle.load(pfile)
-            vocab = pickle_dict["VV"]
-            NMIList = pickle_dict["UU"]
+            vocab = pickle_dict["dictionary"]
+            NMIList = pickle_dict["pnmi"]
 
     else:
         # count_vocab function return a hash-map of unique words in the \
-        # sorted in alphabetical order
-        vocab = count_vocab(corpus)
+        # sorted in decreasing term frequency order
+        vocab = count_unigrams(corpus)
         print "number of words in vocabulary are:  ", len(vocab)
 
         # Saving the above vocabulary in a text file
         tmp_output_dir = OUTPUT_DIR + "/" + "vocabulary"
-        with open(tmp_output_dir+"/"+"vocab.txt", "wb") as fp:
+        with open(tmp_output_dir+"/"+"vocab_"+str(min_df)+".txt", "wb") as fp:
             for word in vocab:
                 print >> fp, word.encode("utf-8"), "\t", vocab[word]
 
@@ -134,7 +147,7 @@ if __name__ == "__main__":
             mmwrite(tmp_out_dir+"k"+str(i), item)
 
         # Saving the NMIList and vocabulary into a pickle file
-        pickle_dict = dict(UU=NMIList, VV=vocab)
+        pickle_dict = dict(pnmi=NMIList, dictionary=vocab)
         with open("variables.pickle", "wb") as pic:
             pickle.dump(pickle_dict, pic)
 

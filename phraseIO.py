@@ -77,7 +77,6 @@ def DeNoise(matList, window, threshold):
 
 def SEQCONSMATRIX(line, window, _buffer_, _rare_, vocab, NMIList):
 
-    # Store the language model matList1 in disk
     def count_vocab2(doc):
         dictionary = dict()
         token_pattern = re.compile(r"(?u)\b\w\w+\b")
@@ -123,7 +122,8 @@ def SEQCONSMATRIX(line, window, _buffer_, _rare_, vocab, NMIList):
 
     return (vocab2, PhiMatrix)
 
-
+# This function checks for the local maxima in the 2-D array \
+# If a valid local maxima is found it return True else False. 
 def IsPhrase(LatticeMatrix, i, j, StartDim, EndDim):
     if ((i-1)>=0): 
         if (LatticeMatrix[i,j] <= LatticeMatrix[i-1,j]):
