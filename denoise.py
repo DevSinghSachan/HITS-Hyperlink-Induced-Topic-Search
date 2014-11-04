@@ -4,7 +4,7 @@ from collections import deque, Counter
 import re
 
 # This is the consistency matrix denoising function         
-def DENOISE(matList, window, threshold):
+def DeNoise(matList, window, threshold):
 
     matListOld = list()
     iteration = 0
@@ -75,7 +75,7 @@ def DENOISE(matList, window, threshold):
             return NMIlist  
 
 
-def SEQCONSMATRIX(line, window, _buffer_, vocab, NMIList):
+def SEQCONSMATRIX(line, window, _buffer_, _rare_, vocab, NMIList):
 
     # Store the language model matList1 in disk
     def count_vocab2(doc):
@@ -99,7 +99,7 @@ def SEQCONSMATRIX(line, window, _buffer_, vocab, NMIList):
             # Finding the global vocab id of these token and friend words
             idToken = vocab[token] if token in vocab else vocab[_rare_]
             frndToken = vocab[friend] if friend in vocab else vocab[_rare_]
-            # print idToken, frndToken
+            #print idToken, frndToken
 
             # assigning values to symmetric Phi matrix 
             PhiMatrix[vocab2[token], vocab2[friend]] += NMIList[i-1][idToken, frndToken]
