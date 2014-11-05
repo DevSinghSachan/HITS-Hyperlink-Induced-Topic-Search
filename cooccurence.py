@@ -1,4 +1,5 @@
 import re
+import sys
 import os
 import pickle
 from collections import deque, Counter
@@ -13,12 +14,14 @@ from hits_coherence import *
 _rare_ = '<?>'
 _buffer_ = '<*>'
 window = 4
-corpus = "big_file.txt"
+corpus = "medium_file.txt"
+#corpus = "news.en-00001-of-00100"
 threshold = 0.4
-min_df = 5
+min_df = 100
 
 OUTPUT_DIR = "saved_model"
 PICKLE_FILE = "variables.pickle"
+
 
 # This function counts the unigrams in the whole corpus
 def count_unigrams(corpus):
@@ -26,7 +29,7 @@ def count_unigrams(corpus):
     ngram = Counter()
     num_line = 0
     num_tok = 0
-  
+
     # This is the regular expression which is used in scikit-learn \
     # for tokenizing words
     token_pattern = re.compile(r"(?u)\b\w\w+\b")
@@ -34,16 +37,15 @@ def count_unigrams(corpus):
     with open(corpus, "rb") as fp:
         for line in fp:
             num_line += 1
-            #if num_line % 1000 is 0:
+            # if num_line % 1000 is 0:
             #    print "Processing line number:  ", num_line
-            if num_tok % 1000 is 0: 
+            if num_tok % 100000 is 0:
                 print "Processed %i tokens" % (num_tok)
 
             toks = token_pattern.findall(line.strip().lower())
             for token in toks:
                 num_tok += 1
-                ngram[token.strip()] += 1 
-                
+                ngram[token.strip()] += 1
     print "Total tokens :  ", num_tok
 
     files = OUTPUT_DIR + "/" + "vocabulary"
@@ -52,13 +54,13 @@ def count_unigrams(corpus):
     sorted_ngram = sorted(ngram.items(), key=lambda x: x[1], reverse=True)
     with open(files+"/"+"term_frequency.txt", 'wb') as outf:
         for token, count in sorted_ngram:
-            print >> outf, token.encode('utf-8') , "\t", count
+            print >> outf, token, "\t", count
 
             if ((min_df is not None) and (count >= min_df)):
                 vocab[token] = len(vocab)
-    
+
     return vocab
-    
+
 
 if __name__ == "__main__":
 
@@ -81,7 +83,7 @@ if __name__ == "__main__":
         tmp_output_dir = OUTPUT_DIR + "/" + "vocabulary"
         with open(tmp_output_dir+"/"+"vocab_"+str(min_df)+".txt", "wb") as fp:
             for word in vocab:
-                print >> fp, word.encode("utf-8"), "\t", vocab[word]
+                print >> fp, word, "\t", vocab[word]
 
         # Total number of tokens processed is initialized as 0.
         num_tok = 0
@@ -94,14 +96,23 @@ if __name__ == "__main__":
 
         # This function increments the coocurrence counts by 1 for every \
         # when two words co-occur together for k=1,2,3
+        @profile
         def inc_stats(q):
             if q[0] == _buffer_:
                 return
-            token = q[0] if q[0] in vocab else _rare_
+            # if q[0] in vocab:
+            if vocab.has_key(q[0]):
+                token = q[0]
+            else:
+                return
             for i in range(1, len(q)):
                 if q[i] == _buffer_:
                     continue
-                friend = q[i] if q[i] in vocab else _rare_
+                # if q[i] in vocab:
+                if vocab.has_key(q[i]):
+                    friend = q[i]
+                else:
+                    continue
                 XYcount[i][(vocab[token], vocab[friend])] += 1.0
 
         # Reading the corpus line by line and tokenizing it. Then adding the \
@@ -111,12 +122,12 @@ if __name__ == "__main__":
             for line in fp:
                 q = deque([_buffer_ for _ in range(window-1)], window)
                 token_pattern = re.compile(r"(?u)\b\w\w+\b")
-                toks = token_pattern.findall(line.lower())
+                toks = token_pattern.findall(line.strip().lower())
                 for tok in toks:
                     num_tok += 1
-                    if num_tok % 1000 is 0:
+                    if num_tok % 10000 is 0:
                         print 'Processed %i tokens' % (num_tok)
-                    q.append(tok)
+                    q.append(tok.strip())
                     inc_stats(q)
                 for _ in range(window-1):
                     q.append(_buffer_)
@@ -151,16 +162,22 @@ if __name__ == "__main__":
         with open("variables.pickle", "wb") as pic:
             pickle.dump(pickle_dict, pic)
 
+    line_no = 0
     # Computing the most important phrases in a line
     with open(corpus, "rb") as fp:
         for line in fp:
             # estimating the local maxima from the consistency matrix
             token_pattern = re.compile(r"(?u)\b\w\w+\b")
-            toks = token_pattern.findall(line.lower())
+            toks = token_pattern.findall(line.strip().lower())
             # print toks
 
+            line_no += 1
+            print >> sys.stderr, "processing line number:  ", line_no
             # latticematrix will store the coherence of that length of \
             # the phrase
+            if len(toks) < 2:
+                continue;
+
             LatticeMatrix = np.zeros([len(toks)-1, window])
 
             # We index the tokens starting from 0 onwards
@@ -172,7 +189,11 @@ if __name__ == "__main__":
                         newString = " ".join(toks[i:i+j+1])
                         # print newString
                         vocab2, SeqConstMatrix = SEQCONSMATRIX(newString,
-                                window, _buffer_, _rare_, vocab, NMIList)
+                                                               window,
+                                                               _buffer_,
+                                                               _rare_,
+                                                               vocab,
+                                                               NMIList)
 
                         # calculating the authority vector of the \
                         # above sequence (i,j)
@@ -193,6 +214,6 @@ if __name__ == "__main__":
             for i in range(0, StartDim):
                 for j in range(1, EndDim):
                     if(i+j+1 <= len(toks)):
-                        temp = IsPhrase(LatticeMatrix, i, j, StartDim, EndDim)
+                        (temp, CoherenceValue) = IsPhrase(LatticeMatrix, i, j, StartDim, EndDim)
                         if temp is True:
-                            print "phrase is ", " ".join(toks[i:i+j+1])
+                            print "phrase is ", " ".join(toks[i:i+j+1]), "\t", str(CoherenceValue)

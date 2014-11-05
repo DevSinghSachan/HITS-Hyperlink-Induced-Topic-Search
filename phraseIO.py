@@ -92,12 +92,22 @@ def SEQCONSMATRIX(line, window, _buffer_, _rare_, vocab, NMIList):
         if q[0] == _buffer_: return
         token = q[0]
         for i in range(1,len(q)):
-            if q[i] == _buffer_: continue
+            if q[i] == _buffer_:
+                continue
             friend = q[i]
 
             # Finding the global vocab id of these token and friend words
-            idToken = vocab[token] if token in vocab else vocab[_rare_]
-            frndToken = vocab[friend] if friend in vocab else vocab[_rare_]
+            # if token in vocab:
+            if vocab.has_key(token):
+                idToken = vocab[token]
+            else:
+                return
+              
+            # if friend in vocab:
+            if vocab.has_key(friend):
+                frndToken = vocab[friend]
+            else:
+                continue
             #print idToken, frndToken
 
             # assigning values to symmetric Phi matrix 
@@ -108,13 +118,13 @@ def SEQCONSMATRIX(line, window, _buffer_, _rare_, vocab, NMIList):
     q = deque([_buffer_ for _ in range(window-1)], window)
 
     token_pattern = re.compile(r"(?u)\b\w\w+\b")
-    toks = token_pattern.findall(line.lower())
+    toks = token_pattern.findall(line.strip().lower())
 
     vocab2 = count_vocab2(line)
     PhiMatrix = np.zeros([len( set(toks)),len(set(toks))])
 
     for tok in toks:
-	q.append(tok)
+	q.append(tok.strip())
 	inc_stats2(q, vocab2)
     for _ in range(window-1):
 	q.append(_buffer_)
@@ -127,14 +137,14 @@ def SEQCONSMATRIX(line, window, _buffer_, _rare_, vocab, NMIList):
 def IsPhrase(LatticeMatrix, i, j, StartDim, EndDim):
     if ((i-1)>=0): 
         if (LatticeMatrix[i,j] <= LatticeMatrix[i-1,j]):
-	    return False
+	    return (False, 0)
     if ((j-1)>=1):
         if (LatticeMatrix[i,j] <= LatticeMatrix[i,j-1]):
-	    return False
+	    return (False, 0)
     if ((i+1)<=StartDim-1):
         if (LatticeMatrix[i,j] <= LatticeMatrix[i+1,j]):
-	    return False
+	    return (False, 0)
     if ((j+1)<=EndDim-1):
         if (LatticeMatrix[i,j] <= LatticeMatrix[i,j+1]):
-	    return False        
-    return True
+	    return (False, 0)        
+    return (True, LatticeMatrix[i,j])
