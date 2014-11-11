@@ -2,6 +2,7 @@ import re
 import sys
 import os
 import pickle
+import logging
 from collections import deque, Counter
 from sklearn.feature_extraction.text import CountVectorizer
 from scipy.sparse import csc_matrix
@@ -16,10 +17,10 @@ _rare_ = '<?>'
 _buffer_ = '<*>'
 window = 4
 #corpus = "small_input.txt"
-corpus = "big_file.txt"
+corpus = "flipkart_reviews/flipkart_only_sentences.txt"
 #corpus = "news.en-00001-of-00100"
-threshold = 0.4
-min_df = 30
+threshold = 0.5
+min_df = 3
 
 OUTPUT_DIR = "saved_model"
 PICKLE_FILE = "variables.pickle"
@@ -92,13 +93,14 @@ if __name__ == "__main__":
 
         # Creating the XYcount dictionary. The keys are the various values \
         # of k i.e. 1,2,3. The keys are initialized with Counter() class.
-        #XYcount = dict()
-        XYcountnew = dict()
+        XYcount = dict()
+        #XYcountnew = dict()
 
         for i in range(1, window):
-            #XYcount[i] = Counter()
-            XYcountnew[i] = lil_matrix((len(vocab), len(vocab)), dtype=np.float32)
+            XYcount[i] = Counter()
+            #XYcountnew[i] = lil_matrix((len(vocab), len(vocab)), dtype=np.float32)
 
+        """
         # This function increments the coocurrence counts by 1 for every \
         # when two words co-occur together for k=1,2,3
         def inc_stats(q):
@@ -119,25 +121,37 @@ if __name__ == "__main__":
                     continue
                 #XYcount[i][(vocab[token], vocab[friend])] += 1.0
                 XYcountnew[i][vocab[token], vocab[friend]] += 1.0
+        """  
 
         # Reading the corpus line by line and tokenizing it. Then adding the \
         # token to an initialized deque() to obtain the co-occurence score   \
         # for k=1,2,3
         with open(corpus, "rb") as fp:
             for line in fp:
-                q = deque([_buffer_ for _ in range(window-1)], window)
+                #q = deque([_buffer_ for _ in range(window-1)], window)
                 token_pattern = re.compile(r"(?u)\b\w\w+\b")
                 toks = token_pattern.findall(line.strip().lower())
-                for tok in toks:
-                    num_tok += 1
-                    if num_tok % 10000 is 0:
-                        print 'Processed %i tokens' % (num_tok)
-                    q.append(tok.strip())
-                    inc_stats(q)
+                toks1 = [word.strip() for word in toks]
+                # for tok in toks1:
+                num_tok += len(toks)
+                if num_tok % 10000 is 0:
+                    print 'Processed %i tokens' % num_tok
+                    #q.append(tok.strip())
+                    #inc_stats(q)
+
+                for i, start_token in enumerate(toks1[0:-1]):
+                    for j in range(1, window):
+                        if (i+j+1 <= len(toks1)):
+                            if vocab.has_key(start_token):
+                                if vocab.has_key(toks1[i+j]):
+                                    #print start_token, toks1[i+j]
+                                    #XYcountnew[j][vocab[start_token], vocab[toks1[i+j]]] += 1.0
+                                    XYcount[j][(vocab[start_token], vocab[toks1[i+j]])] += 1.0
+                """
                 for _ in range(window-1):
                     q.append(_buffer_)
                     inc_stats(q)
-
+                """ 
         # Initializing a list which will contain the sparse matrix of \
         # coocurrence couts. Then storing the coocurrence counts for  \
         # k=1,2,3 in sparse csc_matrix. Then saving the sparse matrix \
@@ -146,18 +160,17 @@ if __name__ == "__main__":
         for i in range(1, window):
             print "converting counter() dict into sparse csc_matrix \
                    for k = ", i
-            #countXY = csc_matrix((XYcount[i].values(),
-            #                     zip(*XYcount[i].keys())),
-            #                     shape=(len(vocab), len(vocab)))
+            countXY = csc_matrix((XYcount[i].values(),
+                                 zip(*XYcount[i].keys())),
+                                 shape=(len(vocab), len(vocab)))
 
-            countXYnew = csc_matrix(XYcountnew[i])
+            #countXYnew = csc_matrix(XYcountnew[i])
 
             #print countXY
-            print countXYnew
+            #print countXYnew
             tmp_out_dir = OUTPUT_DIR + "/" + "coocurrence_counts" + "/"
-            mmwrite(tmp_out_dir+"k"+str(i), countXYnew)
-            matList.append(countXYnew)
-
+            mmwrite(tmp_out_dir+"k"+str(i), countXY)
+            matList.append(countXY)
 
         # Denoising the consistency matrix code
         print "Started the denoisng part of the process"
